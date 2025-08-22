@@ -1,4 +1,4 @@
-name: Deploy Gitti Bot Direct to VPS (Fixed)
+name: Deploy Gitti Bot Direct to VPS (Docker Compose Fixed)
 
 on:
   push:
@@ -50,7 +50,7 @@ jobs:
       url: https://t.me/your_bot_username
 
     steps:
-    - name: Deploy to VPS via SSH (No Sudo)
+    - name: Deploy to VPS with Docker Compose Detection
       uses: appleboy/ssh-action@v0.1.10
       with:
         host: ${{ secrets.VPS_HOST }}
@@ -62,15 +62,64 @@ jobs:
           set -e
           echo "🚀 Начинаем развертывание Gitti Bot..."
 
-          # Проверяем права пользователя
+          # Функция для определения команды Docker Compose
+          get_docker_compose_cmd() {
+            if command -v docker-compose &> /dev/null; then
+              echo "docker-compose"
+            elif docker compose version &> /dev/null; then
+              echo "docker compose"
+            else
+              echo ""
+            fi
+          }
+
+          # Проверяем и устанавливаем Docker Compose
+          echo "🐳 Проверка Docker Compose..."
+          DOCKER_COMPOSE_CMD=$(get_docker_compose_cmd)
+
+          if [ -z "$DOCKER_COMPOSE_CMD" ]; then
+            echo "⚠️  Docker Compose не найден, устанавливаем..."
+
+            # Попробуем установить через apt
+            if command -v apt &> /dev/null; then
+              sudo apt update
+              sudo apt install -y docker-compose-plugin || {
+                echo "🔄 Пробуем установить docker-compose через pip..."
+                sudo apt install -y python3-pip
+                sudo pip3 install docker-compose
+              }
+            elif command -v yum &> /dev/null; then
+              sudo yum install -y docker-compose-plugin || {
+                echo "🔄 Пробуем установить docker-compose через pip..."
+                sudo yum install -y python3-pip
+                sudo pip3 install docker-compose
+              }
+            else
+              echo "🔄 Установка docker-compose через pip..."
+              curl -sSL https://bootstrap.pypa.io/get-pip.py | python3
+              sudo pip3 install docker-compose
+            fi
+
+            # Повторно проверяем
+            DOCKER_COMPOSE_CMD=$(get_docker_compose_cmd)
+
+            if [ -z "$DOCKER_COMPOSE_CMD" ]; then
+              echo "❌ Не удалось установить Docker Compose"
+              exit 1
+            fi
+          fi
+
+          echo "✅ Используем команду: $DOCKER_COMPOSE_CMD"
+
+          # Проверяем права пользователя к Docker
           echo "👤 Текущий пользователь: $(whoami)"
-          echo "🐳 Проверка Docker доступа..."
           if ! docker ps &>/dev/null; then
-            echo "⚠️  Пользователь не в группе docker, добавляем..."
+            echo "🔧 Настройка Docker доступа..."
             sudo usermod -aG docker $USER
             echo "🔄 Перелогинивание в группу docker..."
             newgrp docker <<EONG
               echo "✅ Docker доступ получен"
+              docker ps
           EONG
           else
             echo "✅ Docker доступ уже есть"
@@ -101,34 +150,28 @@ jobs:
           LOG_LEVEL=INFO
           EOF
 
-          # Создаем директории для данных БЕЗ SUDO
+          # Создаем директории для данных
           echo "📁 Создание директорий для данных..."
           mkdir -p data/{user_data,logs}
-
-          # Устанавливаем права БЕЗ SUDO
-          chmod 755 data
-          chmod 755 data/user_data  
-          chmod 755 data/logs
-
-          # Проверяем владельца директорий
+          chmod 755 data data/user_data data/logs
           chown -R $USER:$USER data 2>/dev/null || echo "ℹ️  Права владельца уже корректны"
 
           # Останавливаем старые контейнеры
           echo "⏹️  Остановка старых контейнеров..."
-          docker-compose down --remove-orphans 2>/dev/null || echo "ℹ️  Нет запущенных контейнеров"
+          $DOCKER_COMPOSE_CMD down --remove-orphans 2>/dev/null || echo "ℹ️  Нет запущенных контейнеров"
 
-          # Удаляем старые образы для освобождения места (без sudo)
+          # Удаляем старые образы для освобождения места
           echo "🧹 Очистка старых образов..."
           docker system prune -f --volumes || echo "ℹ️  Очистка пропущена"
           docker image prune -f || echo "ℹ️  Очистка образов пропущена"
 
           # Собираем новый образ локально
           echo "🔨 Сборка Docker образа..."
-          docker-compose build --no-cache --pull
+          $DOCKER_COMPOSE_CMD build --no-cache --pull
 
           # Запускаем контейнеры
           echo "▶️  Запуск контейнеров..."
-          docker-compose up -d
+          $DOCKER_COMPOSE_CMD up -d
 
           # Ждем запуска
           echo "⏳ Ожидание запуска бота..."
@@ -136,11 +179,14 @@ jobs:
 
           # Проверяем статус
           echo "📊 Проверка статуса контейнеров..."
-          docker-compose ps
+          $DOCKER_COMPOSE_CMD ps
 
           # Показываем логи
           echo "📋 Последние логи:"
-          docker-compose logs --tail=10 gitti-bot || echo "ℹ️  Логи пока недоступны"
+          $DOCKER_COMPOSE_CMD logs --tail=10 gitti-bot || echo "ℹ️  Логи пока недоступны"
+
+          # Сохраняем команду для дальнейшего использования
+          echo "export DOCKER_COMPOSE_CMD='$DOCKER_COMPOSE_CMD'" > ~/.gitti_env
 
           echo "✅ Развертывание завершено!"
 
@@ -169,30 +215,50 @@ jobs:
 
           echo "🔍 Проверка работоспособности..."
 
+          # Загружаем команду Docker Compose
+          if [ -f ~/.gitti_env ]; then
+            source ~/.gitti_env
+          else
+            # Определяем команду заново
+            if command -v docker-compose &> /dev/null; then
+              DOCKER_COMPOSE_CMD="docker-compose"
+            elif docker compose version &> /dev/null; then
+              DOCKER_COMPOSE_CMD="docker compose"
+            else
+              DOCKER_COMPOSE_CMD="docker-compose"
+            fi
+          fi
+
+          echo "🐳 Используем команду: $DOCKER_COMPOSE_CMD"
+
           # Проверяем статус контейнеров
-          if docker-compose ps | grep -q "Up"; then
+          if $DOCKER_COMPOSE_CMD ps | grep -q "Up"; then
             echo "✅ Контейнеры запущены"
 
-            # Проверяем логи на наличие ошибок (без sudo)
-            if docker-compose logs --tail=20 gitti-bot | grep -i "error\|failed\|exception" > /dev/null; then
+            # Проверяем логи на наличие ошибок
+            if $DOCKER_COMPOSE_CMD logs --tail=20 gitti-bot | grep -i "error\|failed\|exception" > /dev/null; then
               echo "⚠️  Обнаружены ошибки в логах:"
-              docker-compose logs --tail=20 gitti-bot | grep -i "error\|failed\|exception"
+              $DOCKER_COMPOSE_CMD logs --tail=20 gitti-bot | grep -i "error\|failed\|exception"
             else
               echo "✅ В логах нет критических ошибок"
             fi
 
-            # Проверяем использование ресурсов (без sudo)
+            # Проверяем использование ресурсов
             echo "📊 Использование ресурсов:"
             docker stats --no-stream gitti-telegram-bot 2>/dev/null || echo "ℹ️  Статистика недоступна"
+
+            # Показываем последние логи для проверки работы
+            echo "📋 Последние 5 строк логов:"
+            $DOCKER_COMPOSE_CMD logs --tail=5 gitti-bot 2>/dev/null || echo "ℹ️  Логи недоступны"
 
             echo "🎉 Бот Gitti успешно развернут и работает!"
             exit 0
           else
             echo "❌ Контейнеры не запущены!"
             echo "📋 Статус контейнеров:"
-            docker-compose ps
+            $DOCKER_COMPOSE_CMD ps 2>/dev/null || echo "Не удалось получить статус"
             echo "📋 Логи ошибок:"
-            docker-compose logs --tail=30 gitti-bot
+            $DOCKER_COMPOSE_CMD logs --tail=30 gitti-bot 2>/dev/null || echo "Не удалось получить логи"
             exit 1
           fi
 
@@ -201,6 +267,7 @@ jobs:
       run: |
         echo "🎸 Gitti Bot успешно развернут!"
         echo "✨ Готов обучать детей игре на гитаре!"
+        echo "🚀 Автоматические обновления настроены!"
 
     - name: Notify failure
       if: failure()
@@ -225,17 +292,17 @@ jobs:
         script: |
           echo "🧹 Очистка ресурсов..."
 
-          # Удаляем неиспользуемые образы (без sudo)
+          # Удаляем неиспользуемые образы
           docker image prune -f --filter "until=24h" || echo "ℹ️  Очистка образов пропущена"
 
-          # Удаляем неиспользуемые тома (без sudo)
+          # Удаляем неиспользуемые тома
           docker volume prune -f || echo "ℹ️  Очистка томов пропущена"
 
-          # Удаляем неиспользуемые сети (без sudo) 
+          # Удаляем неиспользуемые сети 
           docker network prune -f || echo "ℹ️  Очистка сетей пропущена"
 
-          # Показываем использование диска (без sudo)
+          # Показываем использование диска
           echo "💾 Использование диска:"
-          df -h / || echo "ℹ️  Информация о диске недоступна"
+          df -h / 2>/dev/null || echo "ℹ️  Информация о диске недоступна"
 
           echo "✅ Очистка завершена"
