@@ -138,7 +138,7 @@ jobs:
             echo "🔄 Обновляем репозиторий..."
             git fetch origin
             git reset --hard origin/main
-            git clean -fd
+            git clean -fd || true
           fi
 
           # Создаем .env файл с секретами
