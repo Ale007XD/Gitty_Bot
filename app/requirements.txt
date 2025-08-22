@@ -1,25 +1,44 @@
-# Telegram Bot Dependencies - Gitti Bot v2.0.4
-# Fixed Google Gemini API dependencies
+# Telegram Bot Dependencies - Gitti Bot v2.0.5
+# Fixed dependency conflicts - Production Ready
 
-# Core Telegram Bot
-aiogram==3.13.0
-pydantic==2.8.2
-python-dotenv==1.0.1
+# ===========================================
+# CORE TELEGRAM BOT FRAMEWORK
+# ===========================================
+aiogram==3.13.0                # Async Telegram Bot API framework
+pydantic==2.8.2                # Data validation and settings management  
+python-dotenv==1.0.1           # Load environment variables from .env file
 
-# Google AI - FIXED
-google-generativeai==0.7.2
+# ===========================================
+# ARTIFICIAL INTELLIGENCE - GOOGLE GEMINI
+# ===========================================
+google-generativeai==0.7.2     # Google Gemini AI API client - FIXED VERSION
 
-# Logging
-loguru==0.7.2
+# ===========================================
+# LOGGING AND MONITORING
+# ===========================================
+loguru==0.7.2                  # Modern logging library with colors and formatting
+python-json-logger==2.0.7      # JSON structured logging for production
 
-# Data Processing
-python-json-logger==2.0.7
+# ===========================================
+# FILE OPERATIONS AND I/O
+# ===========================================
+aiofiles==23.2.1               # Async file operations - FIXED VERSION for aiogram compatibility
 
-# File Operations
-aiofiles==24.1.0
+# ===========================================
+# HTTP CLIENT AND NETWORKING  
+# ===========================================
+aiohttp==3.9.5                 # Async HTTP client/server for Python
 
-# HTTP Client
-aiohttp==3.9.5
+# ===========================================
+# UTILITIES AND TYPE HINTS
+# ===========================================
+typing-extensions==4.12.2      # Backported typing features for older Python versions
 
-# Utilities
-typing-extensions==4.12.2
+# ===========================================
+# COMPATIBILITY NOTES
+# ===========================================
+# - aiogram 3.13.0 requires aiofiles~=23.2.1
+# - Changed from aiofiles==24.1.0 to aiofiles==23.2.1 to fix dependency conflict
+# - All versions tested and compatible for production deployment
+# - Google Gemini API integration fully functional
+# - Optimized for Docker container deployment
