@@ -1,4 +1,4 @@
-name: Deploy Gitti Telegram Bot
+name: Deploy Gitti Bot Direct to VPS
 
 on:
   push:
@@ -6,10 +6,6 @@ on:
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: gitti-bot
 
 jobs:
   test:
@@ -21,7 +17,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Python
+    - name: Set up Python 3.11
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
@@ -31,157 +27,196 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r app/requirements.txt
 
-    - name: Run basic syntax check
+    - name: Run syntax check
       run: |
+        echo "🔍 Проверка синтаксиса Python файлов..."
         python -m py_compile app/bot/main.py
-        python -c "import app.bot.main; print('✅ Main module imports successfully')"
+        python -c "import app.bot.main; print('✅ Основной модуль импортируется успешно')"
 
-  build-and-push:
-    name: Build and Push Docker Image
-    runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
-
-    outputs:
-      image-tag: ${{ steps.meta.outputs.tags }}
-      image-digest: ${{ steps.build.outputs.digest }}
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Log in to Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
-        tags: |
-          type=ref,event=branch
-          type=sha,prefix={{branch}}-
-          type=raw,value=latest,enable={{is_default_branch}}
-
-    - name: Build and push Docker image
-      id: build
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        platforms: linux/amd64,linux/arm64
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+    - name: Test Docker build
+      run: |
+        echo "🐳 Тестовая сборка Docker образа..."
+        docker build -t gitti-bot-test .
+        echo "✅ Docker образ собирается без ошибок"
 
   deploy:
     name: Deploy to VPS
     runs-on: ubuntu-latest
-    needs: build-and-push
+    needs: []
     if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
-    environment: 
+    environment:
       name: production
       url: https://t.me/your_bot_username
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Setup SSH key
-      uses: webfactory/ssh-agent@v0.8.0
+    - name: Deploy to VPS via SSH
+      uses: appleboy/ssh-action@v0.1.10
       with:
-        ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: 22
+        timeout: 300s
+        script: |
+          set -e
+          echo "🚀 Начинаем развертывание Gitti Bot..."
 
-    - name: Add VPS to known hosts
-      run: |
-        ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
-
-    - name: Deploy to VPS
-      env:
-        VPS_HOST: ${{ secrets.VPS_HOST }}
-        VPS_USER: ${{ secrets.VPS_USER }}
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        IMAGE_TAG: ${{ needs.build-and-push.outputs.image-tag }}
-      run: |
-        ssh ${{ env.VPS_USER }}@${{ env.VPS_HOST }} << 'ENDSSH'
-          # Создаем директории
-          mkdir -p ~/gitti-bot/{data/user_data,data/logs}
+          # Создаем рабочую директорию
+          mkdir -p ~/gitti-bot
           cd ~/gitti-bot
 
-          # Создаем .env файл
-          cat > .env << 'EOL'
-        TELEGRAM_BOT_TOKEN=${{ env.TELEGRAM_BOT_TOKEN }}
-        GEMINI_API_KEY=${{ env.GEMINI_API_KEY }}
-        DEBUG=false
-        LOG_LEVEL=INFO
-        EOL
-
-          # Загружаем docker-compose.yml если его нет
-          if [ ! -f docker-compose.yml ]; then
-            curl -sSfL https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.yml -o docker-compose.yml
+          # Клонируем или обновляем репозиторий
+          if [ ! -d ".git" ]; then
+            echo "📥 Клонируем репозиторий..."
+            rm -rf * .* 2>/dev/null || true
+            git clone https://github.com/${{ github.repository }}.git .
+          else
+            echo "🔄 Обновляем репозиторий..."
+            git fetch origin
+            git reset --hard origin/main
+            git clean -fd
           fi
 
-          # Логинимся в registry
-          echo '${{ secrets.GITHUB_TOKEN }}' | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+          # Создаем .env файл с секретами
+          echo "🔐 Создание конфигурации..."
+          cat > .env << 'EOF'
+          TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          DEBUG=false
+          LOG_LEVEL=INFO
+          EOF
 
-          # Останавливаем старый контейнер
-          docker-compose down 2>/dev/null || true
+          # Создаем директории для данных
+          echo "📁 Создание директорий для данных..."
+          mkdir -p data/{user_data,logs}
+          sudo chmod 755 data
+          sudo chmod 755 data/user_data
+          sudo chmod 755 data/logs
 
-          # Обновляем образ
-          docker pull ${{ env.IMAGE_TAG }} || exit 1
+          # Останавливаем старые контейнеры
+          echo "⏹️  Остановка старых контейнеров..."
+          docker-compose down --remove-orphans 2>/dev/null || true
 
-          # Запускаем новый контейнер
+          # Удаляем старые образы для освобождения места
+          echo "🧹 Очистка старых образов..."
+          docker system prune -f --volumes || true
+          docker image prune -f || true
+
+          # Собираем новый образ локально
+          echo "🔨 Сборка Docker образа..."
+          docker-compose build --no-cache --pull
+
+          # Запускаем контейнеры
+          echo "▶️  Запуск контейнеров..."
           docker-compose up -d
 
-          # Ждем запуска и проверяем статус
-          sleep 15
+          # Ждем запуска
+          echo "⏳ Ожидание запуска бота..."
+          sleep 20
+
+          # Проверяем статус
+          echo "📊 Проверка статуса контейнеров..."
           docker-compose ps
-          docker-compose logs --tail=10 gitti-bot
-        ENDSSH
 
-    - name: Health Check
-      run: |
-        sleep 30
-        ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'ENDSSH'
-          cd ~/gitti-bot
-          if docker-compose ps | grep -q "Up"; then
-            echo "✅ Deployment successful!"
-            exit 0
-          else
-            echo "❌ Deployment failed!"
-            docker-compose logs --tail=50 gitti-bot
-            exit 1
-          fi
-        ENDSSH
+          # Показываем логи
+          echo "📋 Последние логи:"
+          docker-compose logs --tail=10 gitti-bot || true
 
-    - name: Notify on success
-      if: success()
-      run: echo "🎉 Gitti bot successfully deployed to production!"
+          echo "✅ Развертывание завершено!"
 
-    - name: Notify on failure
-      if: failure()
-      run: echo "💥 Deployment failed! Check the logs above."
-
-  cleanup:
-    name: Cleanup old images
+  health-check:
+    name: Health Check
     runs-on: ubuntu-latest
     needs: deploy
     if: success()
 
     steps:
-    - name: Clean up old container images
-      continue-on-error: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Wait for bot startup
       run: |
-        # Удаляем старые неиспользуемые образы (оставляем последние 3)
-        gh api           --method GET           -H "Accept: application/vnd.github+json"           /user/packages/container/${{ env.IMAGE_NAME }}/versions           --jq '.[3:] | .[] | select(.metadata.container.tags | length == 0) | .id'           | head -10           | xargs -I {} gh api             --method DELETE             -H "Accept: application/vnd.github+json"             /user/packages/container/${{ env.IMAGE_NAME }}/versions/{}           || echo "No old images to cleanup"
+        echo "⏳ Ожидание полного запуска бота..."
+        sleep 30
+
+    - name: Verify deployment
+      uses: appleboy/ssh-action@v0.1.10
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: 22
+        timeout: 60s
+        script: |
+          cd ~/gitti-bot
+
+          echo "🔍 Проверка работоспособности..."
+
+          # Проверяем статус контейнеров
+          if docker-compose ps | grep -q "Up"; then
+            echo "✅ Контейнеры запущены"
+
+            # Проверяем логи на наличие ошибок
+            if docker-compose logs --tail=20 gitti-bot | grep -i "error\|failed\|exception" > /dev/null; then
+              echo "⚠️  Обнаружены ошибки в логах:"
+              docker-compose logs --tail=20 gitti-bot | grep -i "error\|failed\|exception"
+            else
+              echo "✅ В логах нет критических ошибок"
+            fi
+
+            # Проверяем использование ресурсов
+            echo "📊 Использование ресурсов:"
+            docker stats --no-stream gitti-telegram-bot 2>/dev/null || echo "Статистика недоступна"
+
+            echo "🎉 Бот Gitti успешно развернут и работает!"
+            exit 0
+          else
+            echo "❌ Контейнеры не запущены!"
+            echo "📋 Статус контейнеров:"
+            docker-compose ps
+            echo "📋 Логи ошибок:"
+            docker-compose logs --tail=30 gitti-bot
+            exit 1
+          fi
+
+    - name: Notify success
+      if: success()
+      run: |
+        echo "🎸 Gitti Bot успешно развернут!"
+        echo "✨ Готов обучать детей игре на гитаре!"
+
+    - name: Notify failure
+      if: failure()
+      run: |
+        echo "💥 Проверка развертывания не прошла!"
+        echo "🔍 Проверьте логи VPS и статус контейнеров"
+
+  cleanup:
+    name: Cleanup Resources
+    runs-on: ubuntu-latest
+    needs: health-check
+    if: always()
+
+    steps:
+    - name: Cleanup old resources on VPS
+      uses: appleboy/ssh-action@v0.1.10
+      continue-on-error: true
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        script: |
+          echo "🧹 Очистка ресурсов..."
+
+          # Удаляем неиспользуемые образы (старше 24 часов)
+          docker image prune -f --filter "until=24h" || true
+
+          # Удаляем неиспользуемые тома
+          docker volume prune -f || true
+
+          # Удаляем неиспользуемые сети  
+          docker network prune -f || true
+
+          # Показываем использование диска
+          echo "💾 Использование диска:"
+          df -h / || true
+
+          echo "✅ Очистка завершена"
