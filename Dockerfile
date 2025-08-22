@@ -4,12 +4,11 @@ FROM python:3.11-slim
 # Метаданные
 LABEL maintainer="Gitti Bot Team"
 LABEL description="Telegram bot for learning guitar for kids"
-LABEL version="1.0.0"
+LABEL version="1.0.1"
 
-# Устанавливаем системные зависимости
+# Устанавливаем только необходимые системные зависимости
 RUN apt-get update && apt-get install -y \
     gcc \
-    g++ \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
