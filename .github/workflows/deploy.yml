@@ -1,4 +1,4 @@
-name: Deploy Gitti Bot Direct to VPS
+name: Deploy Gitti Bot Direct to VPS (Fixed)
 
 on:
   push:
@@ -50,7 +50,7 @@ jobs:
       url: https://t.me/your_bot_username
 
     steps:
-    - name: Deploy to VPS via SSH
+    - name: Deploy to VPS via SSH (No Sudo)
       uses: appleboy/ssh-action@v0.1.10
       with:
         host: ${{ secrets.VPS_HOST }}
@@ -61,6 +61,20 @@ jobs:
         script: |
           set -e
           echo "🚀 Начинаем развертывание Gitti Bot..."
+
+          # Проверяем права пользователя
+          echo "👤 Текущий пользователь: $(whoami)"
+          echo "🐳 Проверка Docker доступа..."
+          if ! docker ps &>/dev/null; then
+            echo "⚠️  Пользователь не в группе docker, добавляем..."
+            sudo usermod -aG docker $USER
+            echo "🔄 Перелогинивание в группу docker..."
+            newgrp docker <<EONG
+              echo "✅ Docker доступ получен"
+          EONG
+          else
+            echo "✅ Docker доступ уже есть"
+          fi
 
           # Создаем рабочую директорию
           mkdir -p ~/gitti-bot
@@ -87,21 +101,26 @@ jobs:
           LOG_LEVEL=INFO
           EOF
 
-          # Создаем директории для данных
+          # Создаем директории для данных БЕЗ SUDO
           echo "📁 Создание директорий для данных..."
           mkdir -p data/{user_data,logs}
-          sudo chmod 755 data
-          sudo chmod 755 data/user_data
-          sudo chmod 755 data/logs
+
+          # Устанавливаем права БЕЗ SUDO
+          chmod 755 data
+          chmod 755 data/user_data  
+          chmod 755 data/logs
+
+          # Проверяем владельца директорий
+          chown -R $USER:$USER data 2>/dev/null || echo "ℹ️  Права владельца уже корректны"
 
           # Останавливаем старые контейнеры
           echo "⏹️  Остановка старых контейнеров..."
-          docker-compose down --remove-orphans 2>/dev/null || true
+          docker-compose down --remove-orphans 2>/dev/null || echo "ℹ️  Нет запущенных контейнеров"
 
-          # Удаляем старые образы для освобождения места
+          # Удаляем старые образы для освобождения места (без sudo)
           echo "🧹 Очистка старых образов..."
-          docker system prune -f --volumes || true
-          docker image prune -f || true
+          docker system prune -f --volumes || echo "ℹ️  Очистка пропущена"
+          docker image prune -f || echo "ℹ️  Очистка образов пропущена"
 
           # Собираем новый образ локально
           echo "🔨 Сборка Docker образа..."
@@ -121,7 +140,7 @@ jobs:
 
           # Показываем логи
           echo "📋 Последние логи:"
-          docker-compose logs --tail=10 gitti-bot || true
+          docker-compose logs --tail=10 gitti-bot || echo "ℹ️  Логи пока недоступны"
 
           echo "✅ Развертывание завершено!"
 
@@ -154,7 +173,7 @@ jobs:
           if docker-compose ps | grep -q "Up"; then
             echo "✅ Контейнеры запущены"
 
-            # Проверяем логи на наличие ошибок
+            # Проверяем логи на наличие ошибок (без sudo)
             if docker-compose logs --tail=20 gitti-bot | grep -i "error\|failed\|exception" > /dev/null; then
               echo "⚠️  Обнаружены ошибки в логах:"
               docker-compose logs --tail=20 gitti-bot | grep -i "error\|failed\|exception"
@@ -162,9 +181,9 @@ jobs:
               echo "✅ В логах нет критических ошибок"
             fi
 
-            # Проверяем использование ресурсов
+            # Проверяем использование ресурсов (без sudo)
             echo "📊 Использование ресурсов:"
-            docker stats --no-stream gitti-telegram-bot 2>/dev/null || echo "Статистика недоступна"
+            docker stats --no-stream gitti-telegram-bot 2>/dev/null || echo "ℹ️  Статистика недоступна"
 
             echo "🎉 Бот Gitti успешно развернут и работает!"
             exit 0
@@ -206,17 +225,17 @@ jobs:
         script: |
           echo "🧹 Очистка ресурсов..."
 
-          # Удаляем неиспользуемые образы (старше 24 часов)
-          docker image prune -f --filter "until=24h" || true
+          # Удаляем неиспользуемые образы (без sudo)
+          docker image prune -f --filter "until=24h" || echo "ℹ️  Очистка образов пропущена"
 
-          # Удаляем неиспользуемые тома
-          docker volume prune -f || true
+          # Удаляем неиспользуемые тома (без sudo)
+          docker volume prune -f || echo "ℹ️  Очистка томов пропущена"
 
-          # Удаляем неиспользуемые сети  
-          docker network prune -f || true
+          # Удаляем неиспользуемые сети (без sudo) 
+          docker network prune -f || echo "ℹ️  Очистка сетей пропущена"
 
-          # Показываем использование диска
+          # Показываем использование диска (без sudo)
           echo "💾 Использование диска:"
-          df -h / || true
+          df -h / || echo "ℹ️  Информация о диске недоступна"
 
           echo "✅ Очистка завершена"
