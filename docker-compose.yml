@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  gitti-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: gitti/gitti-bot:latest
+    container_name: gitti-telegram-bot
+    restart: unless-stopped
+
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - DEBUG=${DEBUG:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+
+    volumes:
+      # Персистентное хранение данных пользователей
+      - ./data/user_data:/app/user_data
+      # Логи
+      - ./data/logs:/app/logs
+
+    networks:
+      - gitti-network
+
+    # Ограничения ресурсов
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+    # Настройки логирования Docker
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Проверка здоровья контейнера
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; exit(0 if os.path.exists('/app/user_data') else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+networks:
+  gitti-network:
+    driver: bridge
+    name: gitti-network
+
+# Volumes для данных
+volumes:
+  gitti-user-data:
+    name: gitti-user-data
+  gitti-logs:
+    name: gitti-logs
