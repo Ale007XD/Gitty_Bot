@@ -2,9 +2,13 @@ version: '3.8'
 
 services:
   gitti-bot:
+    # Локальная сборка из Dockerfile
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+
     image: gitti/gitti-bot:latest
     container_name: gitti-telegram-bot
     restart: unless-stopped
@@ -18,7 +22,7 @@ services:
     volumes:
       # Персистентное хранение данных пользователей
       - ./data/user_data:/app/user_data
-      # Логи
+      # Логи приложения
       - ./data/logs:/app/logs
 
     networks:
@@ -29,8 +33,10 @@ services:
       resources:
         limits:
           memory: 512M
+          cpus: '1.0'
         reservations:
           memory: 256M
+          cpus: '0.5'
 
     # Настройки логирования Docker
     logging:
@@ -47,14 +53,23 @@ services:
       retries: 3
       start_period: 60s
 
+    # Политики перезапуска
+    depends_on: []
+
 networks:
   gitti-network:
     driver: bridge
     name: gitti-network
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
 
-# Volumes для данных
+# Volumes для явного управления данными (опционально)
 volumes:
   gitti-user-data:
     name: gitti-user-data
+    driver: local
+
   gitti-logs:
-    name: gitti-logs
+    name: gitti-logs  
+    driver: local
