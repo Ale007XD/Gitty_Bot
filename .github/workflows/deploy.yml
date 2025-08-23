@@ -138,7 +138,7 @@ jobs:
           else
             echo "🔄 Обновляем репозиторий..."
             git fetch origin
-            git reset --hard origin/main
+            git reset --hard origin/main || echo
             # ИСПРАВЛЕНО: Добавлен || true для игнорирования ошибок прав доступа
             git clean -fd || echo "ℹ️  Очистка файлов пропущена из-за прав доступа"
           fi
