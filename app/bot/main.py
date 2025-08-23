@@ -123,7 +123,7 @@ class GittiBotApp:
                 data['user_service'] = self.user_service
                 data['gemini_service'] = self.gemini_service
                 data['guitar_service'] = self.guitar_service
-                return await handler(event, **data)
+                return await handler(event, data)
 
             # Подключаем роутеры
             self.dp.include_router(start.router)
