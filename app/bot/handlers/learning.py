@@ -51,7 +51,7 @@ async def handle_text_message(message: types.Message, user_service: UserService,
             return
 
         # Получаем ответ от Gemini
-        response = await gemini_service.get_response(user_context, user_message)
+        response = await gemini_service.generate_response(message)
 
         # Проверяем на новые достижения после ответа Gemini
         await _check_achievements(user_context, user_service, user_message, response)
