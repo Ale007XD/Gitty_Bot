@@ -7,7 +7,7 @@
 
 **Гитти** - это интерактивный Telegram-бот, который поможет детям 7-12 лет изучить основы игры на гитаре в игровой форме. Бот использует AI-технологии (Google Gemini) для персонализированного обучения и поддерживает геймификацию процесса.
 
-## 🌟 Особенности
+## 🌟 Особенности 
 
 ### 🎯 Обучающие модули
 - **Модуль 0**: Знакомство с инструментом
@@ -86,11 +86,16 @@ docker-compose logs -f gitti-bot
 
 ## 🔧 Настройка для продакшена
 
-### GitHub Secrets
+### 📚 Подробные руководства
+- 🔑 **[GitHub Secrets Setup Guide](GITHUB_SECRETS_SETUP.md)** - Полное руководство по настройке секретов
+- 🌍 **[Gemini Region Fix](GEMINI_REGION_FIX.md)** - Устранение ошибок геолокации Gemini API
+
+### GitHub Secrets (Кратко)
 В настройках репозитория добавьте:
 
 - `TELEGRAM_BOT_TOKEN` - токен вашего бота
-- `GEMINI_API_KEY` - ключ Google Gemini API  
+- `GEMINI_API_KEY` - ключ Google Gemini API
+- `GEMINI_REGION` - регион Gemini API (например: us-central1)
 - `VPS_HOST` - IP адрес VPS
 - `VPS_USER` - имя пользователя SSH
 - `VPS_SSH_KEY` - приватный SSH ключ
