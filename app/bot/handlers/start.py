@@ -139,11 +139,16 @@ async def cmd_chords(message: types.Message, guitar_service: GuitarService):
     """Показать доступные аккорды"""
     try:
         chords = guitar_service.get_available_chords()
+        
+        if not chords:
+            await message.answer("Ошибка при получении списка аккордов.")
+            return
 
         chords_text = "🎸 **Доступные аккорды:**\n\n"
         for chord in chords:
             chord_info = guitar_service.get_chord_info(chord)
-            chords_text += f"• **{chord}** - {chord_info['name']} ({chord_info['difficulty']})\n"
+            if chord_info:  # Дополнительная проверка
+                chords_text += f"• **{chord}** - {chord_info['name']} ({chord_info['difficulty']})\n"
 
         chords_text += "\n💡 Напиши название аккорда, и я покажу тебе диаграмму!"
 
