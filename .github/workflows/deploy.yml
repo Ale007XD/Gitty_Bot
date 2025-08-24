@@ -148,6 +148,7 @@ jobs:
           cat > .env << 'EOF'
           TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
           GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          GEMINI_REGION=${{ secrets.GEMINI_REGION }}
           DEBUG=false
           LOG_LEVEL=INFO
           USER_DATA_PATH=/app/user_data
