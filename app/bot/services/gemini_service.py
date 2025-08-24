@@ -29,7 +29,7 @@ class GeminiService:
             genai.configure(api_key=self.api_key)
             
             # Создание модели
-            self.model = genai.GenerativeModel('gemini-pro')
+            self.model = genai.GenerativeModel('gemini-1.5-flash')
             
             # Настройки генерации
             self.generation_config = genai.types.GenerationConfig(
@@ -274,7 +274,7 @@ class GeminiService:
         """Информация о сервисе"""
         return {
             "service": "Google Gemini AI",
-            "model": "gemini-pro",
+            "model": "gemini-1.5-flash",
             "status": "active" if self.health_check() else "error",
             "features": [
                 "Генерация ответов",
