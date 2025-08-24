@@ -27,19 +27,12 @@ class GeminiService:
     def _initialize(self):
         """Инициализация клиента Gemini"""
         try:
-            # Принудительная установка региона через переменные окружения
-            import os
-            os.environ['GOOGLE_CLOUD_REGION'] = self.region
-            os.environ['GOOGLE_CLOUD_PROJECT_REGION'] = self.region
-            os.environ['GCLOUD_PROJECT_REGION'] = self.region
-            
             logger.info(f"🌍 Установлен регион Gemini API: {self.region}")
             
-            # Настройка API ключа с принудительным REST транспортом
+            # Настройка API ключа с стандартным endpoint
             genai.configure(
                 api_key=self.api_key,
-                transport="rest",  # Принудительно используем REST
-                # Не указываем client_options для использования глобального endpoint
+                transport="rest",  # Используем REST транспорт
             )
             
             # Создание модели
@@ -114,8 +107,11 @@ class GeminiService:
             error_msg = str(e).lower()
             logger.error(f"❌ Ошибка генерации ответа Gemini: {e}")
             
-            # Специальная обработка географических ограничений
-            if "user location is not supported" in error_msg or "location" in error_msg:
+            # Обработка различных типов ошибок API
+            if any(keyword in error_msg for keyword in [
+                "user location is not supported", "location", "region", 
+                "unknown error", "404", "not found", "access denied"
+            ]):
                 return self._get_location_error_response()
             
             return self._get_error_response()
@@ -216,17 +212,18 @@ class GeminiService:
     
     def _get_location_error_response(self) -> str:
         """Ответ при ошибке геолокации"""
-        return """🎸 Привет! Я бы хотел использовать AI, но у меня есть ограничения по региону.
+        return """🎸 Привет! У меня временные проблемы с AI, но я всё равно могу помочь!
 
-Но не расстраивайся! Я всё равно могу помочь тебе с гитарой! ✨
+Я умею многое и без AI! ✨
 
 Используй команды:
-🎵 /chords - показать аккорды
+🎵 /chords - показать все аккорды
 🎶 /song - текст первой песни
 ✨ /parts - части гитары
 🎯 /exercises - упражнения
+🎸 /strings - названия струн
 
-Напиши название аккорда (например, Am или E) и я покажу диаграмму! 🎸"""
+Либо напиши название аккорда (Am, E, G, C, D) и я покажу диаграмму! 🎸"""
     
     async def generate_lesson_content(self, lesson_type: str, user_level: str = "начинающий") -> Dict[str, Any]:
         """
