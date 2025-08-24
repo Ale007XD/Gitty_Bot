@@ -39,9 +39,7 @@ class GeminiService:
             genai.configure(
                 api_key=self.api_key,
                 transport="rest",  # Принудительно используем REST
-                client_options={
-                    "api_endpoint": f"https://{self.region}-aiplatform.googleapis.com"
-                } if self.region != "us-central1" else None
+                # Не указываем client_options для использования глобального endpoint
             )
             
             # Создание модели
