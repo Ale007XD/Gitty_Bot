@@ -12,10 +12,10 @@ Google Gemini API имеет географические ограничения
 Добавьте переменную `GEMINI_REGION` в ваш `.env` файл или переменные окружения:
 
 ```bash
-# Попробуйте разные регионы
-GEMINI_REGION=us-central1        # США (по умолчанию)
-GEMINI_REGION=europe-west1       # Европа  
+# Попробуйте разные регионы (в порядке приоритета)
+GEMINI_REGION=europe-west1       # Европа (РЕКОМЕНДУЕМЫЙ)
 GEMINI_REGION=asia-southeast1    # Азия
+GEMINI_REGION=us-central1        # США (может не работать)
 ```
 
 ### 2. Обновление docker-compose.yml
