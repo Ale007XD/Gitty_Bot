@@ -20,7 +20,7 @@ GitHub Repository → Settings → Secrets and variables → Actions → Reposit
 #### 🤖 GEMINI_API_KEY  
 - **Описание**: API ключ Google Gemini
 - **Получение**: Google AI Studio (https://makersuite.google.com/app/apikey)
-- **Формат**: `AIzaSyC1234567890abcdefghijk_1234567890`
+- **Формат**: `AIzaXXX...XXX`
 - **Обязательно**: ✅
 
 #### 🌍 GEMINI_REGION (КРИТИЧЕСКИ ВАЖНО!)
