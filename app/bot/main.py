@@ -94,7 +94,7 @@ class GittiBotApp:
         try:
             # Инициализация сервисов
             self.user_service = UserService("user_data")
-            self.gemini_service = GeminiService(self.config.gemini_api_key)
+            self.gemini_service = GeminiService(self.config.gemini_api_key, self.config.gemini_region)
             self.guitar_service = GuitarService()
 
             logger.info("Все сервисы инициализированы успешно")

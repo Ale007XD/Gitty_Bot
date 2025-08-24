@@ -16,6 +16,7 @@ class BotConfig(BaseModel):
     
     # Google Gemini AI
     gemini_api_key: str = Field(..., min_length=10, description="API ключ Google Gemini")
+    gemini_region: str = Field(default="us-central1", description="Регион для Google Gemini API")
     
     # Логирование
     log_level: str = Field(default="INFO", description="Уровень логирования")
@@ -45,6 +46,18 @@ class BotConfig(BaseModel):
             raise ValueError("Некорректный API ключ Google Gemini")
         return v
     
+    @validator('gemini_region')
+    def validate_gemini_region(cls, v):
+        """Валидация региона Gemini"""
+        valid_regions = [
+            "us-central1", "us-east1", "us-west1", "us-west4",
+            "europe-west1", "europe-west2", "europe-west3", "europe-west4",
+            "asia-southeast1", "asia-northeast1", "asia-east1"
+        ]
+        if v not in valid_regions:
+            logger.warning(f"⚠️  Нестандартный регион Gemini: {v}. Рекомендуемые: {', '.join(valid_regions[:3])}")
+        return v
+    
     @validator('log_level')
     def validate_log_level(cls, v):
         """Валидация уровня логирования"""
@@ -62,9 +75,18 @@ class BotConfig(BaseModel):
             Экземпляр BotConfig
         """
         try:
+            # Получаем регион для Gemini
+            gemini_region = os.getenv('GEMINI_REGION')
+            if not gemini_region:
+                gemini_region = 'us-central1'  # Регион по умолчанию
+                logger.warning("⚠️  GEMINI_REGION не установлен, используем us-central1")
+            else:
+                logger.info(f"🌍 Используем регион Gemini: {gemini_region}")
+            
             config = cls(
                 telegram_token=os.getenv('TELEGRAM_BOT_TOKEN', ''),
                 gemini_api_key=os.getenv('GEMINI_API_KEY', ''),
+                gemini_region=gemini_region,
                 log_level=os.getenv('LOG_LEVEL', 'INFO'),
                 debug=os.getenv('DEBUG', 'false').lower() == 'true',
                 user_data_path=os.getenv('USER_DATA_PATH', '/app/user_data'),

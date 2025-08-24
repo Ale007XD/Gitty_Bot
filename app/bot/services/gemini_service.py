@@ -11,22 +11,38 @@ from loguru import logger
 class GeminiService:
     """Сервис для работы с Google Gemini AI для обучения игре на гитаре"""
     
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, region: str = "us-central1"):
         """
         Инициализация сервиса Gemini
         
         Args:
             api_key: API ключ для Google Gemini
+            region: Регион для API (по умолчанию us-central1)
         """
         self.api_key = api_key
+        self.region = region
         self.model = None
         self._initialize()
     
     def _initialize(self):
         """Инициализация клиента Gemini"""
         try:
-            # Настройка API ключа
-            genai.configure(api_key=self.api_key)
+            # Принудительная установка региона через переменные окружения
+            import os
+            os.environ['GOOGLE_CLOUD_REGION'] = self.region
+            os.environ['GOOGLE_CLOUD_PROJECT_REGION'] = self.region
+            os.environ['GCLOUD_PROJECT_REGION'] = self.region
+            
+            logger.info(f"🌍 Установлен регион Gemini API: {self.region}")
+            
+            # Настройка API ключа с принудительным REST транспортом
+            genai.configure(
+                api_key=self.api_key,
+                transport="rest",  # Принудительно используем REST
+                client_options={
+                    "api_endpoint": f"https://{self.region}-aiplatform.googleapis.com"
+                } if self.region != "us-central1" else None
+            )
             
             # Создание модели
             self.model = genai.GenerativeModel('gemini-1.5-flash')
@@ -97,7 +113,13 @@ class GeminiService:
                 return self._get_fallback_response(prompt)
                 
         except Exception as e:
+            error_msg = str(e).lower()
             logger.error(f"❌ Ошибка генерации ответа Gemini: {e}")
+            
+            # Специальная обработка географических ограничений
+            if "user location is not supported" in error_msg or "location" in error_msg:
+                return self._get_location_error_response()
+            
             return self._get_error_response()
     
     def _generate_content_sync(self, prompt: str):
@@ -194,6 +216,20 @@ class GeminiService:
 
 Скоро я снова буду готов помочь! ✨"""
     
+    def _get_location_error_response(self) -> str:
+        """Ответ при ошибке геолокации"""
+        return """🎸 Привет! Я бы хотел использовать AI, но у меня есть ограничения по региону.
+
+Но не расстраивайся! Я всё равно могу помочь тебе с гитарой! ✨
+
+Используй команды:
+🎵 /chords - показать аккорды
+🎶 /song - текст первой песни
+✨ /parts - части гитары
+🎯 /exercises - упражнения
+
+Напиши название аккорда (например, Am или E) и я покажу диаграмму! 🎸"""
+    
     async def generate_lesson_content(self, lesson_type: str, user_level: str = "начинающий") -> Dict[str, Any]:
         """
         Генерация контента урока
@@ -286,12 +322,13 @@ class GeminiService:
 
 
 # Функция-фабрика для создания сервиса
-def create_gemini_service(api_key: str) -> GeminiService:
+def create_gemini_service(api_key: str, region: str = "us-central1") -> GeminiService:
     """
     Создание экземпляра GeminiService
     
     Args:
         api_key: API ключ Google Gemini
+        region: Регион для API
         
     Returns:
         Настроенный экземпляр GeminiService
@@ -299,4 +336,4 @@ def create_gemini_service(api_key: str) -> GeminiService:
     if not api_key:
         raise ValueError("API ключ Google Gemini не может быть пустым")
     
-    return GeminiService(api_key)
+    return GeminiService(api_key, region)
